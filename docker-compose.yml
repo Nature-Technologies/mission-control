@@ -71,8 +71,23 @@ services:
       - PORT=${PORT:-3000}
       - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
 
+    # OpenClaw Gateway sidecar
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw-gateway
+    env_file:
+      - .env
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    volumes:
+      - openclaw-data:/root/.openclaw
+    networks:
+      - mc-net
+    restart: unless-stopped
+
 volumes:
   mc-data:
+  openclaw-data:
 
 networks:
   mc-net:
