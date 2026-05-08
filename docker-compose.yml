@@ -6,11 +6,11 @@ services:
       - "${MC_PORT:-3000}:${PORT:-3000}"
     environment:
       - PORT=${PORT:-3000}
+      - OPENCLAW_HOME=/run/openclaw
       # ── Server-side gateway connection (MC backend → gateway) ──
-      # host.docker.internal resolves to the Docker host on Docker Desktop (macOS/Windows).
-      # On Linux, the extra_hosts entry below makes this work.
-      # If your gateway runs in another container, set this to the container name instead.
-      - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-host.docker.internal}
+      # Uses the openclaw-gateway container name so the MC backend can reach the
+      # gateway over the shared mc-net Docker network.
+      - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-openclaw-gateway}
       - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
       # ── Browser-side gateway connection (user's browser → gateway) ──
       # NEXT_PUBLIC_GATEWAY_HOST must be reachable from the user's browser, NOT from
@@ -31,9 +31,9 @@ services:
         required: false
     volumes:
       - mc-data:/app/.data
-      # Optional: mount your OpenClaw state directory read-only so Mission Control
-      # can read agent configs and memory. Uncomment and adjust the host path:
-      # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
+      # Mount OpenClaw state directory for bidirectional agent/gateway config sync.
+      # Mission Control reads agents from openclaw.json and writes back agent changes.
+      - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw
     # Allow the container to reach an OpenClaw gateway running on the Docker host.
     # Docker Desktop (macOS/Windows): host.docker.internal works out of the box.
     # Linux: this extra_hosts entry maps host.docker.internal to the host IP.
@@ -55,6 +55,8 @@ services:
           memory: 512M
           cpus: '1.0'
           pids: 256
+    depends_on:
+      - openclaw-gateway
     networks:
       - mc-net
     restart: unless-stopped
@@ -80,7 +82,8 @@ services:
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
     volumes:
-      - openclaw-data:/root/.openclaw
+      - openclaw-data:/home/node/.openclaw
+      - ./openclaw-config.json:/home/node/.openclaw/openclaw.json
     networks:
       - mc-net
     restart: unless-stopped
