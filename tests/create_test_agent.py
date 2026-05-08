@@ -153,6 +153,7 @@ class AgentCreator:
         config: Optional[Dict[str, Any]] = None,
         status: str = "offline",
         session_key: Optional[str] = None,
+        provision_openclaw: bool = True,
     ) -> Dict[str, Any]:
         """Create a new agent with specified configuration
 
@@ -164,6 +165,7 @@ class AgentCreator:
             config: Custom configuration object
             status: Initial status (offline, online, sleeping)
             session_key: Optional session key for agent
+            provision_openclaw: Whether to provision agent in OpenClaw (default: True)
 
         Returns:
             Response body with created agent details (id, name, role, etc.)
@@ -175,6 +177,7 @@ class AgentCreator:
             "name": name,
             "role": role,
             "status": status,
+            "provision_openclaw_workspace": provision_openclaw,
         }
 
         if template:
@@ -206,6 +209,7 @@ class AgentCreator:
         prefix: str = "test-agent",
         roles: Optional[List[str]] = None,
         include_souls: bool = True,
+        provision_openclaw: bool = True,
     ) -> List[Dict[str, Any]]:
         """Create multiple test agents
 
@@ -214,6 +218,7 @@ class AgentCreator:
             prefix: Name prefix for all agents
             roles: List of roles to cycle through (if None, uses 'tester')
             include_souls: Whether to assign random soul templates
+            provision_openclaw: Whether to provision agents in OpenClaw
 
         Returns:
             List of created agent details
@@ -238,6 +243,7 @@ class AgentCreator:
                     name=agent_name,
                     role=role,
                     soul_content=soul_content,
+                    provision_openclaw=provision_openclaw,
                 )
                 created_agents.append(agent)
                 print(f"✓ (ID: {agent.get('id')})")
@@ -345,6 +351,13 @@ def main():
         help="Delete agents matching prefix",
     )
 
+    # OpenClaw provisioning
+    parser.add_argument(
+        "--no-provision-openclaw",
+        action="store_true",
+        help="Don't provision agent in OpenClaw (useful when OpenClaw is in Docker)",
+    )
+
     args = parser.parse_args()
 
     creator = AgentCreator(base_url=args.url, api_key=args.api_key)
@@ -400,6 +413,7 @@ def main():
                 count=args.batch,
                 prefix=args.prefix,
                 include_souls=not args.no_souls,
+                provision_openclaw=not args.no_provision_openclaw,
             )
             print(f"\n✓ Created {len(agents)}/{args.batch} agent(s)")
             print("\nSummary:")
@@ -433,6 +447,7 @@ def main():
                 role=args.role,
                 template=args.template,
                 soul_content=soul_content,
+                provision_openclaw=not args.no_provision_openclaw,
             )
 
             print("✓ Agent created successfully!\n")
