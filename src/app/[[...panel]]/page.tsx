@@ -90,7 +90,7 @@ export default function Home() {
   const tb = useTranslations('boot')
   const tp = useTranslations('page')
   const tc = useTranslations('common')
-  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, setOpenclawUpdate, showOnboarding, setShowOnboarding, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen, bootComplete, setBootComplete, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData } = useMissionControl()
+  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, setOpenclawUpdate, showOnboarding, setShowOnboarding, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen, bootComplete, setBootComplete, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData, setAvailableModels } = useMissionControl()
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
@@ -235,6 +235,12 @@ export default function Home() {
       })
       .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
       .catch(() => { markStep('auth') })
+
+    // Populate model dropdown from gateway (falls back to catalog if gateway unavailable)
+    fetch('/api/models')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (Array.isArray(data?.models) && data.models.length > 0) setAvailableModels(data.models) })
+      .catch(() => {})
 
     // Check for available updates
     fetch('/api/releases/check')

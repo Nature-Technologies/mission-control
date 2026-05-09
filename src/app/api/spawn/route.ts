@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
+import { invalidateSessionCache } from '@/lib/sessions'
+import { eventBus } from '@/lib/event-bus'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
@@ -50,39 +52,27 @@ export async function POST(request: NextRequest) {
     // Generate spawn ID
     const spawnId = `spawn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    // Construct the spawn command
-    // Using OpenClaw's sessions_spawn function via clawdbot CLI
+    // Construct the spawn command using sessions_create (renamed from sessions_spawn in OpenClaw 2026.5+)
     const spawnPayload = {
       task,
       label,
       ...(model ? { model } : {}),
-      runTimeoutSeconds: timeout,
-      tools: {
-        profile: getPreferredToolsProfile(),
-      },
     }
 
     try {
-      // Call gateway sessions_spawn directly. Try with tools.profile first,
-      // fall back without it for older gateways that don't support the field.
-      let result: any
-      let compatibilityFallbackUsed = false
-      try {
-        result = await callOpenClawGateway('sessions_spawn', spawnPayload, 15_000)
-      } catch (firstError: any) {
-        const rawErr = String(firstError?.message || '').toLowerCase()
-        const isToolsSchemaError =
-          (rawErr.includes('unknown field') || rawErr.includes('unknown key') || rawErr.includes('invalid argument')) &&
-          (rawErr.includes('tools') || rawErr.includes('profile'))
-        if (!isToolsSchemaError) throw firstError
-
-        const fallbackPayload = { ...spawnPayload }
-        delete (fallbackPayload as any).tools
-        result = await callOpenClawGateway('sessions_spawn', fallbackPayload, 15_000)
-        compatibilityFallbackUsed = true
-      }
+      const result: any = await callOpenClawGateway('sessions.create', spawnPayload, 15_000)
+      const compatibilityFallbackUsed = false
 
       const sessionInfo = result?.sessionId || result?.session_id || null
+
+      // Invalidate disk cache so next /api/sessions poll returns fresh data,
+      // and notify all SSE-connected frontends to refetch sessions immediately.
+      invalidateSessionCache()
+      eventBus.broadcast('session.updated', {
+        sessionId: sessionInfo,
+        label: label ?? null,
+        source: 'openclaw-spawn',
+      })
 
       const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
       logAuditEvent({

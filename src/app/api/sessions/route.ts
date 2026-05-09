@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
         if (!VALID_THINKING_LEVELS.includes(level)) {
           return NextResponse.json({ error: `Invalid thinking level. Must be: ${VALID_THINKING_LEVELS.join(', ')}` }, { status: 400 })
         }
-        rpcMethod = 'session_setThinking'
-        rpcParams = { sessionKey, level }
+        rpcMethod = 'sessions.patch'
+        rpcParams = { key: sessionKey, thinkingLevel: level }
         logDetail = `Set thinking=${level} on ${sessionKey}`
         break
       }
@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
         if (!VALID_VERBOSE_LEVELS.includes(level)) {
           return NextResponse.json({ error: `Invalid verbose level. Must be: ${VALID_VERBOSE_LEVELS.join(', ')}` }, { status: 400 })
         }
-        rpcMethod = 'session_setVerbose'
-        rpcParams = { sessionKey, level }
+        rpcMethod = 'sessions.patch'
+        rpcParams = { key: sessionKey, verboseLevel: level }
         logDetail = `Set verbose=${level} on ${sessionKey}`
         break
       }
@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
         if (!VALID_REASONING_LEVELS.includes(level)) {
           return NextResponse.json({ error: `Invalid reasoning level. Must be: ${VALID_REASONING_LEVELS.join(', ')}` }, { status: 400 })
         }
-        rpcMethod = 'session_setReasoning'
-        rpcParams = { sessionKey, level }
+        rpcMethod = 'sessions.patch'
+        rpcParams = { key: sessionKey, reasoningLevel: level }
         logDetail = `Set reasoning=${level} on ${sessionKey}`
         break
       }
@@ -105,8 +105,8 @@ export async function POST(request: NextRequest) {
         if (typeof label !== 'string' || label.length > 100) {
           return NextResponse.json({ error: 'Label must be a string up to 100 characters' }, { status: 400 })
         }
-        rpcMethod = 'session_setLabel'
-        rpcParams = { sessionKey, label }
+        rpcMethod = 'sessions.patch'
+        rpcParams = { key: sessionKey, label }
         logDetail = `Set label="${label}" on ${sessionKey}`
         break
       }
@@ -147,7 +147,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session key' }, { status: 400 })
     }
 
-    const result = await callOpenClawGateway('session_delete', { sessionKey }, 10_000)
+    const result = await callOpenClawGateway('sessions.delete', { key: sessionKey }, 10_000)
 
     db_helpers.logActivity(
       'session_control',

@@ -1624,12 +1624,25 @@ export function ConfigTab({
         </div>
       )}
 
-      {config.openclawId && (
+      {editing ? (
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1">OpenClaw Agent ID</label>
+          <input
+            value={config.openclawId || ''}
+            onChange={(e) => setConfig((prev: any) => ({ ...prev, openclawId: e.target.value.trim() || undefined }))}
+            placeholder={agent.name.toLowerCase().replace(/\s+/g, '-')}
+            className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            The agent ID registered in OpenClaw (used for task dispatch). Leave blank to use embedded agent.
+          </p>
+        </div>
+      ) : config.openclawId ? (
         <div className="text-xs text-muted-foreground">
           OpenClaw ID: <span className="font-mono text-foreground">{config.openclawId}</span>
           {config.isDefault && <span className="ml-2 px-1.5 py-0.5 bg-primary/20 text-primary rounded text-xs">{t('default')}</span>}
         </div>
-      )}
+      ) : null}
 
       {showJson ? (
         /* JSON view */

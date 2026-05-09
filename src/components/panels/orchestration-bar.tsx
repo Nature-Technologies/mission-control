@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { PipelineTab } from './pipeline-tab'
+import { useMissionControl } from '@/store'
 
 interface Agent {
   id: number
@@ -37,12 +38,13 @@ type TemplateFormData = {
 }
 
 const emptyForm: TemplateFormData = {
-  name: '', description: '', model: 'sonnet', task_prompt: '',
+  name: '', description: '', model: '', task_prompt: '',
   timeout_seconds: 300, agent_role: '', tags: []
 }
 
 export function OrchestrationBar() {
   const t = useTranslations('orchestration')
+  const { availableModels } = useMissionControl()
   const [agents, setAgents] = useState<Agent[]>([])
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
   const [activeTab, setActiveTab] = useState<'command' | 'templates' | 'pipelines' | 'fleet'>('command')
@@ -370,13 +372,13 @@ export function OrchestrationBar() {
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     />
                     <select
-                      value={templateForm.model}
+                      value={templateForm.model || availableModels[0]?.name || ''}
                       onChange={(e) => setTemplateForm(f => ({ ...f, model: e.target.value }))}
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     >
-                      <option value="haiku">Haiku</option>
-                      <option value="sonnet">Sonnet</option>
-                      <option value="opus">Opus</option>
+                      {availableModels.map(m => (
+                        <option key={m.name} value={m.name}>{m.alias || m.name}</option>
+                      ))}
                     </select>
                   </div>
                   <input

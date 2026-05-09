@@ -30,6 +30,7 @@ export function useServerEvents() {
 
   const {
     setConnection,
+    setSessions,
     addTask,
     updateTask,
     deleteTask,
@@ -182,6 +183,14 @@ export function useServerEvents() {
             })
           }
           break
+
+        // Session events — refetch from server to get fresh session list
+        case 'session.updated':
+          fetch('/api/sessions')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => { if (Array.isArray(data?.sessions)) setSessions(data.sessions) })
+            .catch(() => {})
+          break
       }
     }
 
@@ -198,6 +207,7 @@ export function useServerEvents() {
     }
   }, [
     setConnection,
+    setSessions,
     addTask,
     updateTask,
     deleteTask,

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(docker exec mission-control sh -c \"sqlite3 /app/.data/mission-control.db 'SELECT id, name, model, config FROM agents;'\")"
+    ]
+  }
+}

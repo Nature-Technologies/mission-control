@@ -5,8 +5,8 @@ import { db_helpers } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
-// Only allow alphanumeric, hyphens, and underscores in session IDs
-const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/
+// Session keys can be UUIDs or colon-separated paths like agent:main:dashboard:UUID
+const SESSION_ID_RE = /^[a-zA-Z0-9_:.-]+$/
 
 export async function POST(
   request: NextRequest,
@@ -20,7 +20,8 @@ export async function POST(
 
   try {
     const { id } = await params
-    const { action } = await request.json()
+    const body = await request.json()
+    const { action, message: bodyMessage } = body
 
     if (!SESSION_ID_RE.test(id)) {
       return NextResponse.json(
@@ -29,21 +30,26 @@ export async function POST(
       )
     }
 
-    if (!['monitor', 'pause', 'terminate'].includes(action)) {
+    if (!['monitor', 'pause', 'terminate', 'send'].includes(action)) {
       return NextResponse.json(
-        { error: 'Invalid action. Must be: monitor, pause, terminate' },
+        { error: 'Invalid action. Must be: monitor, pause, terminate, send' },
         { status: 400 }
       )
     }
 
     let result: unknown
     if (action === 'terminate') {
-      result = await callOpenClawGateway('sessions_kill', { sessionKey: id }, 10_000)
+      result = await callOpenClawGateway('sessions.abort', { key: id }, 10_000)
+    } else if (action === 'send') {
+      if (typeof bodyMessage !== 'string' || !bodyMessage.trim()) {
+        return NextResponse.json({ error: 'message is required for send action' }, { status: 400 })
+      }
+      result = await callOpenClawGateway('sessions.send', { key: id, message: bodyMessage.trim() }, 10_000)
     } else {
       const message = action === 'monitor'
-        ? { type: 'control', action: 'monitor' }
-        : { type: 'control', action: 'pause' }
-      result = await callOpenClawGateway('sessions_send', { sessionKey: id, message }, 10_000)
+        ? JSON.stringify({ type: 'control', action: 'monitor' })
+        : JSON.stringify({ type: 'control', action: 'pause' })
+      result = await callOpenClawGateway('sessions.send', { key: id, message }, 10_000)
     }
 
     db_helpers.logActivity(

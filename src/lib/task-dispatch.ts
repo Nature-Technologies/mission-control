@@ -66,6 +66,23 @@ export function resolveTaskDispatchModelOverride(task: Pick<DispatchableTask, 'a
   return null
 }
 
+/**
+ * Extract the agent's primary model from its config JSON.
+ * Used when falling back to sessions.create, which requires an explicit model
+ * (without one, the gateway uses an unexpected built-in default).
+ */
+function resolveAgentPrimaryModel(task: Pick<DispatchableTask, 'agent_config'>): string | null {
+  if (task.agent_config) {
+    try {
+      const cfg = JSON.parse(task.agent_config)
+      if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) return cfg.dispatchModel
+      if (typeof cfg.model === 'string' && cfg.model) return cfg.model
+      if (cfg.model && typeof cfg.model === 'object' && typeof cfg.model.primary === 'string' && cfg.model.primary) return cfg.model.primary
+    } catch { /* ignore */ }
+  }
+  return null
+}
+
 /** Extract the gateway agent identifier from the agent's config JSON.
  *  Falls back to agent_name (display name) if openclawId is not set. */
 function resolveGatewayAgentId(task: DispatchableTask): string {
@@ -1340,11 +1357,25 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         // null = no override, agent uses its own configured default model.
         if (dispatchModel) invokeParams.model = dispatchModel
 
-        const acceptedPayload = await callOpenClawGateway<any>(
-          'agent',
-          invokeParams,
-          AGENT_DISPATCH_ACCEPT_TIMEOUT_MS,
-        )
+        let acceptedPayload: any
+        try {
+          acceptedPayload = await callOpenClawGateway<any>(
+            'agent',
+            invokeParams,
+            AGENT_DISPATCH_ACCEPT_TIMEOUT_MS,
+          )
+        } catch (agentErr: any) {
+          const msg = String(agentErr?.message || '')
+          // If the agent ID is not registered in OpenClaw, fall back to
+          // sessions.create (embedded agent) so the task still runs.
+          if (!msg.includes('unknown agent id') && !msg.includes('invalid agent params')) throw agentErr
+          logger.warn({ taskId: task.id, gatewayAgentId }, 'agent invoke failed — unknown agent id, falling back to sessions.create')
+          const spawnPayload: Record<string, unknown> = { task: prompt, label: task.title }
+          // Always pass an explicit model to sessions.create — without one the gateway
+          // falls back to its own built-in default (may be an unconfigured provider).
+          spawnPayload.model = dispatchModel || resolveAgentPrimaryModel(task) || 'openrouter/auto'
+          acceptedPayload = await callOpenClawGateway<any>('sessions.create', spawnPayload, 15_000)
+        }
         const status = String(acceptedPayload?.status || '').toLowerCase()
         if (status && !['started', 'ok', 'in_flight', 'accepted'].includes(status)) {
           throw new Error(`agent dispatch returned status: ${status}`)

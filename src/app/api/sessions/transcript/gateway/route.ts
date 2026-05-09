@@ -23,18 +23,42 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const sessionKey = searchParams.get('key') || ''
+  const sessionId = searchParams.get('sessionId') || ''
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
 
-  if (!sessionKey) {
-    return NextResponse.json({ error: 'key is required' }, { status: 400 })
+  if (!sessionKey && !sessionId) {
+    return NextResponse.json({ error: 'key or sessionId is required' }, { status: 400 })
   }
 
   const stateDir = config.openclawStateDir
-  if (!stateDir) {
+  // In Docker, the gateway's data volume is mounted separately from the host config dir
+  const gatewayStateDir = process.env.OPENCLAW_GATEWAY_STATE_DIR || stateDir
+  if (!gatewayStateDir && !stateDir) {
     return NextResponse.json({ messages: [], source: 'gateway', error: 'OPENCLAW_STATE_DIR not configured' })
   }
 
   try {
+    // If given a raw sessionId (not a key), try chat.history RPC then disk scan
+    if (!sessionKey && sessionId) {
+      // Some gateway versions accept sessionId directly in chat.history
+      try {
+        const history = await callOpenClawGateway<{ messages?: unknown[] }>(
+          'chat.history',
+          { sessionId, limit },
+          15000,
+        )
+        const liveMessages = parseGatewayHistoryTranscript(Array.isArray(history?.messages) ? history.messages : [], limit)
+        if (liveMessages.length > 0) {
+          return NextResponse.json({ messages: liveMessages, source: 'gateway-rpc' })
+        }
+      } catch { /* fallthrough to disk */ }
+
+      const result = readTranscriptBySessionId(gatewayStateDir || stateDir, sessionId, limit)
+        ?? (gatewayStateDir !== stateDir ? readTranscriptBySessionId(stateDir, sessionId, limit) : null)
+      if (result) return NextResponse.json(result)
+      return NextResponse.json({ messages: [], source: 'gateway', error: 'Session not found' })
+    }
+
     try {
       const history = await callOpenClawGateway<{ messages?: unknown[] }>(
         'chat.history',
@@ -55,17 +79,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Could not determine agent from session key' })
     }
 
-    // Look up the sessionId from the agent's sessions.json
-    const sessionsFile = path.join(stateDir, 'agents', agentName, 'sessions', 'sessions.json')
-    if (!existsSync(sessionsFile)) {
-      return NextResponse.json({ messages: [], source: 'gateway', error: 'Agent sessions file not found' })
+    // Look up the sessionId from the agent's sessions.json, checking gateway volume first
+    const tryDirs = [gatewayStateDir, ...(gatewayStateDir !== stateDir ? [stateDir] : [])]
+    let sessionsData: Record<string, any> | null = null
+    let resolvedStateDir = gatewayStateDir || stateDir
+
+    for (const dir of tryDirs) {
+      if (!dir) continue
+      const sf = path.join(dir, 'agents', agentName, 'sessions', 'sessions.json')
+      if (existsSync(sf)) {
+        try { sessionsData = JSON.parse(readFileSync(sf, 'utf-8')); resolvedStateDir = dir; break } catch { /* try next */ }
+      }
     }
 
-    let sessionsData: Record<string, any>
-    try {
-      sessionsData = JSON.parse(readFileSync(sessionsFile, 'utf-8'))
-    } catch {
-      return NextResponse.json({ messages: [], source: 'gateway', error: 'Could not parse sessions.json' })
+    if (!sessionsData) {
+      return NextResponse.json({ messages: [], source: 'gateway', error: 'Agent sessions file not found' })
     }
 
     const sessionEntry = sessionsData[sessionKey]
@@ -73,13 +101,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Session not found in sessions.json' })
     }
 
-    const sessionId = sessionEntry.sessionId
-    const jsonlPath = path.join(stateDir, 'agents', agentName, 'sessions', `${sessionId}.jsonl`)
+    const resolvedId = sessionEntry.sessionId
+    const jsonlPath = path.join(resolvedStateDir, 'agents', agentName, 'sessions', `${resolvedId}.jsonl`)
     if (!existsSync(jsonlPath)) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Session JSONL file not found' })
     }
 
-    // Read and parse the JSONL file
     const raw = readFileSync(jsonlPath, 'utf-8')
     const messages = parseJsonlTranscript(raw, limit)
 
@@ -88,6 +115,28 @@ export async function GET(request: NextRequest) {
     logger.warn({ err, sessionKey }, 'Gateway session transcript read failed')
     return NextResponse.json({ messages: [], source: 'gateway', error: 'Failed to read session transcript' })
   }
+}
+
+/** Scan all agents to find a JSONL by raw session UUID. */
+function readTranscriptBySessionId(stateDir: string, sessionId: string, limit: number) {
+  const { readdirSync } = require('fs') as typeof import('fs')
+  const agentsDir = path.join(stateDir, 'agents')
+  if (!existsSync(agentsDir)) return null
+
+  let agentDirs: string[]
+  try { agentDirs = readdirSync(agentsDir) } catch { return null }
+
+  for (const agentName of agentDirs) {
+    const jsonlPath = path.join(agentsDir, agentName, 'sessions', `${sessionId}.jsonl`)
+    if (existsSync(jsonlPath)) {
+      try {
+        const raw = readFileSync(jsonlPath, 'utf-8')
+        const messages = parseJsonlTranscript(raw, limit)
+        return { messages, source: 'gateway' }
+      } catch { /* try next */ }
+    }
+  }
+  return null
 }
 
 function extractAgentName(sessionKey: string): string | null {
