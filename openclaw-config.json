@@ -1,31 +1,102 @@
 {
-  "gateway": {
-    "controlUi": {
-      "allowedOrigins": [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:18789",
-        "http://127.0.0.1:18789"
-      ]
+    "mcp": {
+        "servers": {
+            "miriel": {
+                "url": "https://api.prod2.miriel.ai/api/v2/mcp/protocol/miriel-context-manager-2a64ecbd",
+                "transport": "sse"
+            }
+        }
+    },
+    "agents": {
+        "defaults": {
+            "bootstrapMaxChars": 20000,
+            "bootstrapTotalMaxChars": 150000,
+            "contextInjection": "always",
+            "model": {
+                "primary": "openrouter/qwen/qwen3.6-plus"
+            },
+            "models": {
+                "openrouter/anthropic/claude-sonnet-4.6": {},
+                "openrouter/auto": {
+                    "alias": "OpenRouter"
+                },
+                "openrouter/google/gemma-4-31b-it": {},
+                "openrouter/qwen/qwen3.6-plus": {}
+            }
+        },
+        "list": [
+            {
+                "id": "main",
+                "model": "openrouter/google/gemma-4-31b-it"
+            }
+        ]
+    },
+    "gateway": {
+        "auth": {
+            "mode": "token",
+            "token": "pcaATRoqvFrYaZVC23ZA529JboHbaC14"
+        },
+        "controlUi": {
+            "allowedOrigins": [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:18789",
+                "http://127.0.0.1:18789"
+            ]
+        }
+    },
+    "auth": {
+        "profiles": {
+            "openrouter:default": {
+                "provider": "openrouter",
+                "mode": "api_key"
+            }
+        }
+    },
+    "plugins": {
+        "entries": {
+            "browser": {
+                "enabled": true
+            },
+            "duckduckgo": {
+                "enabled": true
+            },
+            "openrouter": {
+                "enabled": true
+            }
+        }
+    },
+    "skills": {
+        "install": {
+            "nodeManager": "pnpm"
+        }
+    },
+    "tools": {
+        "profile": "coding",
+        "web": {
+            "search": {
+                "enabled": true,
+                "provider": "duckduckgo"
+            }
+        }
+    },
+    "meta": {
+        "lastTouchedVersion": "2026.5.7",
+        "lastTouchedAt": "2026-05-08T02:33:30.765Z"
+    },
+    "channels": {
+        "whatsapp": {
+            "capabilities": [
+                ""
+            ],
+            "allowFrom": [
+                "http://127.0.0.1:18789"
+            ],
+            "dmPolicy": "pairing",
+            "groupPolicy": "allowlist",
+            "debounceMs": 0,
+            "mediaMaxMb": 50,
+            "enabled": true
+        }
     }
-  },
-  "meta": {
-    "lastTouchedVersion": "2026.5.7",
-    "lastTouchedAt": "2026-05-08T02:33:30.765Z"
-  },
-  "channels": {
-    "whatsapp": {
-      "capabilities": [
-        ""
-      ],
-      "allowFrom": [
-        "http://127.0.0.1:18789"
-      ],
-      "dmPolicy": "pairing",
-      "groupPolicy": "allowlist",
-      "debounceMs": 0,
-      "mediaMaxMb": 50,
-      "enabled": true
-    }
-  }
 }
