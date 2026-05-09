@@ -3,7 +3,7 @@
 # The mothership for your OpenClaw fleet.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/builderz-labs/mission-control/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Nature-Technologies/mission-control/main/install.sh | bash
 #   # or
 #   bash install.sh [--docker|--local] [--port PORT] [--data-dir DIR]
 #
@@ -16,7 +16,7 @@ MC_PORT="${MC_PORT:-3000}"
 MC_DATA_DIR=""
 DEPLOY_MODE=""
 SKIP_OPENCLAW=false
-REPO_URL="https://github.com/builderz-labs/mission-control.git"
+REPO_URL="https://github.com/Nature-Technologies/mission-control.git"
 INSTALL_DIR="${MC_INSTALL_DIR:-$(pwd)/mission-control}"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
@@ -331,7 +331,7 @@ check_openclaw() {
     warn "Consider upgrading to openclaw CLI"
   else
     info "OpenClaw CLI not found — install it to enable agent orchestration"
-    info "  See: https://github.com/builderz-labs/openclaw"
+    info "  See: https://github.com/openclaw/openclaw"
     return
   fi
 
