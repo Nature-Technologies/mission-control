@@ -20,26 +20,38 @@ export interface GatewaySession {
 }
 
 function getGatewaySessionStoreFiles(): string[] {
-  const openclawStateDir = config.openclawStateDir
-  if (!openclawStateDir) return []
-
-  const agentsDir = path.join(openclawStateDir, 'agents')
-  if (!fs.existsSync(agentsDir)) return []
-
-  let agentDirs: string[]
-  try {
-    agentDirs = fs.readdirSync(agentsDir)
-  } catch {
-    return []
-  }
+  // Check both the host openclaw dir and the gateway's Docker volume mount.
+  // In Docker the named volume (with actual agent sessions) is at OPENCLAW_GATEWAY_STATE_DIR.
+  const stateDirs = Array.from(new Set([
+    config.openclawStateDir,
+    process.env.OPENCLAW_GATEWAY_STATE_DIR || '',
+  ])).filter(Boolean)
 
   const files: string[] = []
-  for (const agentName of agentDirs) {
-    const sessionsFile = path.join(agentsDir, agentName, 'sessions', 'sessions.json')
+  const seen = new Set<string>()
+
+  for (const openclawStateDir of stateDirs) {
+    const agentsDir = path.join(openclawStateDir, 'agents')
+    if (!fs.existsSync(agentsDir)) continue
+
+    let agentDirs: string[]
     try {
-      if (fs.statSync(sessionsFile).isFile()) files.push(sessionsFile)
+      agentDirs = fs.readdirSync(agentsDir)
     } catch {
-      // Skip missing or unreadable session stores.
+      continue
+    }
+
+    for (const agentName of agentDirs) {
+      const sessionsFile = path.join(agentsDir, agentName, 'sessions', 'sessions.json')
+      if (seen.has(sessionsFile)) continue
+      try {
+        if (fs.statSync(sessionsFile).isFile()) {
+          files.push(sessionsFile)
+          seen.add(sessionsFile)
+        }
+      } catch {
+        // Skip missing or unreadable session stores.
+      }
     }
   }
   return files
@@ -49,7 +61,7 @@ function getGatewaySessionStoreFiles(): string[] {
 // Stores sessions without the `active` flag so the cache is independent of activeWithinMs.
 type RawSession = Omit<GatewaySession, 'active'>
 let _sessionCache: { data: RawSession[]; ts: number } | null = null
-const SESSION_CACHE_TTL_MS = 30_000
+const SESSION_CACHE_TTL_MS = 5_000
 
 /** Invalidate the session cache (e.g. after pruning). */
 export function invalidateSessionCache(): void {

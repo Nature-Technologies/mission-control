@@ -18,16 +18,16 @@ export const MODEL_CATALOG: ModelConfig[] = [
   { alias: 'codex-mini', name: 'openai/codex-mini-latest', provider: 'openai', description: 'Codex Mini, optimized for code', costPer1k: 1.5 },
   // Google
   { alias: 'gemini-2.5-pro', name: 'google/gemini-2.5-pro', provider: 'google', description: 'Gemini 2.5 Pro', costPer1k: 1.25 },
-  { alias: 'gemini-2.5-flash', name: 'google/gemini-2.5-flash', provider: 'google', description: 'Gemini 2.5 Flash, fast', costPer1k: 0.15 },
+  { alias: 'gemini-2.5-flash', name: 'openrouter/google/gemini-2.0-flash-001', provider: 'google', description: 'Gemini 2.5 Flash, fast', costPer1k: 0.15 },
   // Local / open-source
   { alias: 'deepseek', name: 'ollama/deepseek-r1:14b', provider: 'ollama', description: 'Local reasoning (free)', costPer1k: 0.0 },
   // Groq (hosted inference)
   { alias: 'groq-fast', name: 'groq/llama-3.1-8b-instant', provider: 'groq', description: '840 tok/s, ultra fast', costPer1k: 0.05 },
-  { alias: 'groq', name: 'groq/llama-3.3-70b-versatile', provider: 'groq', description: 'Fast + quality balance', costPer1k: 0.59 },
+  { alias: 'groq', name: 'groq/llama-3.3-70b-versatile', provider: 'openrouter/autogroq', description: 'Fast + quality balance', costPer1k: 0.59 },
   // Other providers
   { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPer1k: 1.0 },
   { alias: 'venice-llama-3.3-70b', name: 'venice/llama-3.3-70b', provider: 'venice', description: 'Venice AI Llama 3.3 70B', costPer1k: 0.7 },
-  { alias: 'minimax', name: 'minimax/minimax-m2.1', provider: 'minimax', description: 'Cost-effective, strong coding', costPer1k: 0.3 },
+  { alias: 'auto', name: 'openrouter/auto', provider: 'openrouter', description: 'FREE', costPer1k: 0.0 },
 ]
 
 export function getModelByAlias(alias: string): ModelConfig | undefined {

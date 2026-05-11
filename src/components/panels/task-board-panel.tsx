@@ -411,11 +411,19 @@ export function TaskBoardPanel() {
   const [showSpawnForm, setShowSpawnForm] = useState(false)
   const [spawnFormData, setSpawnFormData] = useState<SpawnFormData>({
     task: '',
-    model: 'sonnet',
+    model: '',
     label: '',
     timeoutSeconds: 300
   })
   const [isSpawning, setIsSpawning] = useState(false)
+
+  // Sync model selection to first available when the model list loads/changes
+  useEffect(() => {
+    if (!spawnFormData.model && availableModels.length > 0) {
+      setSpawnFormData(prev => ({ ...prev, model: availableModels[0].name }))
+    }
+  }, [availableModels, spawnFormData.model])
+
   const [gnapStatus, setGnapStatus] = useState<{ enabled: boolean; taskCount?: number; lastSync?: string } | null>(null)
   const [gnapSyncing, setGnapSyncing] = useState(false)
   const isLocal = dashboardMode === 'local'
@@ -690,7 +698,7 @@ export function TaskBoardPanel() {
           status: 'running',
           result: result.sessionInfo || 'Agent spawned successfully'
         })
-        setSpawnFormData({ task: '', model: 'sonnet', label: '', timeoutSeconds: 300 })
+        setSpawnFormData({ task: '', model: availableModels[0]?.name || '', label: '', timeoutSeconds: 300 })
         setShowSpawnForm(false)
       } else {
         updateSpawnRequest(spawnId, {
@@ -866,7 +874,7 @@ export function TaskBoardPanel() {
                   disabled={isSpawning}
                 >
                   {availableModels.map((model) => (
-                    <option key={model.alias} value={model.alias}>{model.alias}</option>
+                    <option key={model.name} value={model.name}>{model.alias || model.name}</option>
                   ))}
                 </select>
                 <input
@@ -1839,10 +1847,22 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
 
   const fetchTranscript = useCallback(async () => {
     try {
+      // Try Claude Code transcript first
       const res = await fetch(`/api/sessions/transcript?kind=claude-code&id=${encodeURIComponent(sessionId)}&limit=100`)
-      if (!res.ok) throw new Error(`Failed to fetch transcript: ${res.status}`)
-      const data = await res.json()
-      setMessages(data.messages || [])
+      if (res.ok) {
+        const data = await res.json()
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages)
+          setError(null)
+          return
+        }
+      }
+      // Fall back to gateway transcript (OpenClaw sessions.create dispatch)
+      const agentParam = agentName ? `&agent=${encodeURIComponent(agentName)}` : ''
+      const gwRes = await fetch(`/api/sessions/transcript/gateway?sessionId=${encodeURIComponent(sessionId)}${agentParam}&limit=100`)
+      if (!gwRes.ok) throw new Error(`Failed to fetch transcript: ${gwRes.status}`)
+      const gwData = await gwRes.json()
+      setMessages(gwData.messages || [])
       setError(null)
     } catch (err: any) {
       setError(err.message || 'Failed to load session transcript')

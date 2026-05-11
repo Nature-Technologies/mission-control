@@ -1058,23 +1058,21 @@ function QuickSpawnModal({
   onClose: () => void
   onSpawned: () => void
 }) {
+  const { availableModels } = useMissionControl()
   const [spawnData, setSpawnData] = useState({
     task: '',
-    model: 'sonnet',
+    model: '',
     label: `${agent.name}-subtask-${Date.now()}`,
     timeoutSeconds: 300
   })
   const [isSpawning, setIsSpawning] = useState(false)
   const [spawnResult, setSpawnResult] = useState<any>(null)
 
-  const models = [
-    { id: 'haiku', name: 'Claude Haiku', cost: '$0.25/1K', speed: 'Ultra Fast' },
-    { id: 'sonnet', name: 'Claude Sonnet', cost: '$3.00/1K', speed: 'Fast' },
-    { id: 'opus', name: 'Claude Opus', cost: '$15.00/1K', speed: 'Slow' },
-    { id: 'groq-fast', name: 'Groq Llama 8B', cost: '$0.05/1K', speed: '840 tok/s' },
-    { id: 'groq', name: 'Groq Llama 70B', cost: '$0.59/1K', speed: '150 tok/s' },
-    { id: 'deepseek', name: 'DeepSeek R1', cost: 'FREE', speed: 'Local' },
-  ]
+  useEffect(() => {
+    if (!spawnData.model && availableModels.length > 0) {
+      setSpawnData(prev => ({ ...prev, model: availableModels[0].name }))
+    }
+  }, [availableModels, spawnData.model])
 
   const handleSpawn = async () => {
     if (!spawnData.task.trim()) {
@@ -1160,9 +1158,9 @@ function QuickSpawnModal({
                 onChange={(e) => setSpawnData(prev => ({ ...prev, model: e.target.value }))}
                 className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
               >
-                {models.map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} - {model.cost} ({model.speed})
+                {availableModels.map(model => (
+                  <option key={model.name} value={model.name}>
+                    {model.alias || model.name}
                   </option>
                 ))}
               </select>

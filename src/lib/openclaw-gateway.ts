@@ -3,6 +3,7 @@ import { APP_VERSION } from './version'
 import { config } from './config'
 import { buildGatewayWebSocketUrl } from './gateway-url'
 import { getDetectedGatewayToken } from './gateway-runtime'
+import { getOrCreateBackendDeviceIdentity, signBackendPayload } from './backend-device-identity'
 
 const GATEWAY_PROTOCOL_VERSION = 3
 const GATEWAY_CLIENT_ID = process.env.GATEWAY_CLIENT_ID || 'gateway-client'
@@ -115,9 +116,37 @@ export async function callOpenClawGateway<T = unknown>(
       ws.send(JSON.stringify(frame))
     }
 
-    const sendConnect = (_nonce?: string) => {
+    const sendConnect = async (nonce?: string) => {
       if (connectSent || settled || ws.readyState !== WebSocket.OPEN) return
       connectSent = true
+
+      let device: { id: string; publicKey: string; signature: string; signedAt: number; nonce: string } | undefined
+
+      if (nonce && token) {
+        try {
+          const identity = getOrCreateBackendDeviceIdentity()
+          const signedAt = Date.now()
+          const payload = [
+            'v2',
+            identity.deviceId,
+            GATEWAY_CLIENT_ID,
+            'backend',
+            'operator',
+            GATEWAY_SCOPES.join(','),
+            String(signedAt),
+            token,
+            nonce,
+          ].join('|')
+          device = {
+            id: identity.deviceId,
+            publicKey: identity.publicKeyBase64,
+            signature: signBackendPayload(identity.privateKeyBase64, payload),
+            signedAt,
+            nonce,
+          }
+        } catch { /* proceed without device identity — token-only fallback */ }
+      }
+
       sendFrame({
         type: 'req',
         method: 'connect',
@@ -137,6 +166,7 @@ export async function callOpenClawGateway<T = unknown>(
           scopes: GATEWAY_SCOPES,
           caps: ['tool-events'],
           auth: token ? { token } : undefined,
+          device,
         },
       })
     }
@@ -157,7 +187,7 @@ export async function callOpenClawGateway<T = unknown>(
     }, boundedTimeoutMs)
 
     const connectFallback = setTimeout(() => {
-      sendConnect()
+      void sendConnect()
     }, 100)
 
     ws.on('open', () => {
@@ -175,7 +205,7 @@ export async function callOpenClawGateway<T = unknown>(
 
       if (frame.type === 'event' && frame.event === 'connect.challenge') {
         connectSent = false
-        sendConnect(frame.payload?.nonce)
+        void sendConnect(frame.payload?.nonce)
         return
       }
 

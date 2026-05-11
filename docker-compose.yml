@@ -7,6 +7,9 @@ services:
     environment:
       - PORT=${PORT:-3000}
       - OPENCLAW_HOME=/run/openclaw
+      # Path to the gateway's data volume (read-only). Used for reading session JSONL
+      # transcripts. Separate from OPENCLAW_HOME which is the host config bind-mount.
+      - OPENCLAW_GATEWAY_STATE_DIR=/run/openclaw-gateway
       # ── Server-side gateway connection (MC backend → gateway) ──
       # Uses the openclaw-gateway container name so the MC backend can reach the
       # gateway over the shared mc-net Docker network.
@@ -34,6 +37,9 @@ services:
       # Mount OpenClaw state directory for bidirectional agent/gateway config sync.
       # Mission Control reads agents from openclaw.json and writes back agent changes.
       - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw
+      # Read-only access to the gateway's data volume so MC can read session JSONL
+      # transcripts directly from disk (agents/<name>/sessions/<id>.jsonl).
+      - openclaw-data:/run/openclaw-gateway:ro
     # Allow the container to reach an OpenClaw gateway running on the Docker host.
     # Docker Desktop (macOS/Windows): host.docker.internal works out of the box.
     # Linux: this extra_hosts entry maps host.docker.internal to the host IP.
@@ -83,10 +89,37 @@ services:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
     volumes:
       - openclaw-data:/home/node/.openclaw
-      - ./openclaw-config.json:/home/node/.openclaw/openclaw.json
     networks:
       - mc-net
     restart: unless-stopped
+    depends_on:
+      openclaw-config-init:
+        condition: service_completed_successfully
+
+  # Seeds openclaw.json into the named volume on first run and ensures the state
+  # directory is world-traversable so the mission-control container (different uid)
+  # can read session JSONL files from the shared volume.
+  openclaw-config-init:
+    image: busybox
+    user: "0"
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+      - ./openclaw-config.json:/tmp/openclaw-seed.json:ro
+    entrypoint: ["/bin/sh", "-c", "[ -f /home/node/.openclaw/openclaw.json ] || cp /tmp/openclaw-seed.json /home/node/.openclaw/openclaw.json && chmod -R o+rX /home/node/.openclaw 2>/dev/null || true && echo 'init done'"]
+    restart: "no"
+
+  # Keeps the openclaw data volume world-traversable as new sessions are created.
+  # Runs as root alongside the gateway so mission-control (uid 1001) can read JSONL files.
+  openclaw-perms:
+    image: busybox
+    user: "0"
+    volumes:
+      - openclaw-data:/data
+    command: ["sh", "-c", "while true; do chmod -R o+rX /data/agents 2>/dev/null; sleep 30; done"]
+    restart: unless-stopped
+    depends_on:
+      openclaw-config-init:
+        condition: service_completed_successfully
 
 volumes:
   mc-data:

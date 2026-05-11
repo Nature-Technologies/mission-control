@@ -33,9 +33,10 @@ function parseConfig(raw: string | null | undefined): Record<string, unknown> {
 
 function getConfigOpenClawId(agent: CoordinatorAgentRecord): string | null {
   const parsed = parseConfig(agent.config)
-  return typeof parsed.openclawId === 'string' && parsed.openclawId.trim()
+  const raw = typeof parsed.openclawId === 'string' && parsed.openclawId.trim()
     ? parsed.openclawId.trim()
     : null
+  return raw ? normalizeOpenClawId(raw) : null
 }
 
 function getConfigIsDefault(agent: CoordinatorAgentRecord): boolean {
