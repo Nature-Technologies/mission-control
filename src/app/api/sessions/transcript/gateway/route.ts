@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const sessionKey = searchParams.get('key') || ''
   const sessionId = searchParams.get('sessionId') || ''
+  const agentParam = searchParams.get('agent') || ''
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
 
   if (!sessionKey && !sessionId) {
@@ -38,21 +39,23 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // If given a raw sessionId (not a key), try chat.history RPC then disk scan
+    // If given a raw sessionId (not a key), scan disk for the JSONL transcript
     if (!sessionKey && sessionId) {
-      // Some gateway versions accept sessionId directly in chat.history
-      try {
-        const history = await callOpenClawGateway<{ messages?: unknown[] }>(
-          'chat.history',
-          { sessionId, limit },
-          15000,
-        )
-        const liveMessages = parseGatewayHistoryTranscript(Array.isArray(history?.messages) ? history.messages : [], limit)
-        if (liveMessages.length > 0) {
-          return NextResponse.json({ messages: liveMessages, source: 'gateway-rpc' })
-        }
-      } catch { /* fallthrough to disk */ }
+      const tryDirs = [gatewayStateDir, ...(gatewayStateDir !== stateDir ? [stateDir] : [])]
 
+      // If agent is known, check its directory directly first
+      if (agentParam) {
+        for (const dir of tryDirs) {
+          if (!dir) continue
+          const jsonlPath = path.join(dir, 'agents', agentParam, 'sessions', `${sessionId}.jsonl`)
+          if (existsSync(jsonlPath)) {
+            const raw = readFileSync(jsonlPath, 'utf-8')
+            return NextResponse.json({ messages: parseJsonlTranscript(raw, limit), source: 'gateway' })
+          }
+        }
+      }
+
+      // Broad scan across all agents as fallback
       const result = readTranscriptBySessionId(gatewayStateDir || stateDir, sessionId, limit)
         ?? (gatewayStateDir !== stateDir ? readTranscriptBySessionId(stateDir, sessionId, limit) : null)
       if (result) return NextResponse.json(result)

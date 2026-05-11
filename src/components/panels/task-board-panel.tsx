@@ -1858,7 +1858,8 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
         }
       }
       // Fall back to gateway transcript (OpenClaw sessions.create dispatch)
-      const gwRes = await fetch(`/api/sessions/transcript/gateway?sessionId=${encodeURIComponent(sessionId)}&limit=100`)
+      const agentParam = agentName ? `&agent=${encodeURIComponent(agentName)}` : ''
+      const gwRes = await fetch(`/api/sessions/transcript/gateway?sessionId=${encodeURIComponent(sessionId)}${agentParam}&limit=100`)
       if (!gwRes.ok) throw new Error(`Failed to fetch transcript: ${gwRes.status}`)
       const gwData = await gwRes.json()
       setMessages(gwData.messages || [])
